@@ -8,10 +8,30 @@
 </head>
 <body>
 
+    <div id="project-title">PartyDown</div>
+    <button id="change-count-button" title="Change Start Count">⚙️</button>
+
     <button id="countdown-button"></button>
     <div id="message"></div>
 
+    <div id="dedication">For the best girl i know. May you ever be motivated and celebrated.</div>
+
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <script src="script.js"></script>
+
+    <!-- Change Count Modal -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal-content">
+            <h2>Change Starting Count</h2>
+            <p>Enter a new positive whole number:</p>
+            <input type="number" id="modal-input" min="1" step="1">
+            <div id="modal-error" class="error-message"></div>
+            <div class="modal-buttons">
+                <button id="modal-submit">Set Count</button>
+                <button id="modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html> 
