@@ -1,0 +1,28 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #333; /* Start with dark grey */
+    margin: 0;
+    font-family: sans-serif;
+    transition: background-color 0.3s ease;
+}
+
+#countdown-button {
+    padding: 20px 40px;
+    font-size: 3em;
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+    background-color: #eee;
+    color: #333;
+}
+
+#message {
+    position: absolute;
+    font-size: 4em;
+    color: green; /* Or any color you like for the success message */
+    text-align: center;
+    display: none; /* Hidden initially */
+} 
