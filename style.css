@@ -52,6 +52,7 @@ body {
     color: green; /* Or any color you like for the success message */
     text-align: center;
     display: none; /* Hidden initially */
+    pointer-events: none;
 }
 
 #change-count-button {

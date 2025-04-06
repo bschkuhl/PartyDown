@@ -32,7 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Config ---
     const pastelColors = ['color-1', 'color-2', 'color-3', 'color-4', 'color-5'];
-    const speedFactor = 0.8; // Base speed for balloon movement (Reduced from 1.5)
+    const speedFactor = 0.8;
+    const baseBalloonWidth = 80; // Base size from CSS
+    const baseBalloonHeight = 105; // Base size from CSS
 
     // Messages for Papers
     const paperMessages = [
@@ -126,11 +128,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const randomColor = pastelColors[Math.floor(Math.random() * pastelColors.length)];
         balloon.classList.add(randomColor);
 
-        // Get balloon dimensions (approximated from CSS for initial check)
-        // Update dimensions to match new CSS
-        const balloonWidth = 80;
-        const balloonHeight = 105;
-        const totalHeight = balloonHeight + 30; // Include string space for initial placement
+        // --- Size Variation ---
+        const scaleVariation = 0.10; // +/- 10% (Increased from 0.05)
+        const randomScaleFactor = 1 + (Math.random() - 0.5) * 2 * scaleVariation; // Range: 0.90 to 1.10
+        const currentWidth = baseBalloonWidth * randomScaleFactor;
+        const currentHeight = baseBalloonHeight * randomScaleFactor;
+
+        // Apply and store size
+        balloon.style.width = `${currentWidth}px`;
+        balloon.style.height = `${currentHeight}px`;
+        balloon.dataset.width = currentWidth;
+        balloon.dataset.height = currentHeight;
+        // --- End Size Variation ---
+
+        const totalHeight = currentHeight + 30; // Include string space for initial placement
         const margin = 10;
 
         const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
@@ -143,20 +154,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         while (overlaps && attempts < maxAttempts) {
             attempts++;
-            // Random initial position
-            // Ensure position allows for balloon dimensions + margin + string within viewport
-            const startX = Math.random() * (vw - balloonWidth - margin * 2) + margin;
+            // Use CURRENT size for placement calculation
+            const startX = Math.random() * (vw - currentWidth - margin * 2) + margin;
             const startY = Math.random() * (vh - totalHeight - margin * 2) + margin;
 
-            // Calculate potential bounding box (using balloon dimensions only for collision)
+            // Use CURRENT size for collision check bounding box
             const potentialRect = {
                 left: startX,
                 top: startY,
-                right: startX + balloonWidth,
-                bottom: startY + balloonHeight // Collision check ignores the string
+                right: startX + currentWidth,
+                bottom: startY + currentHeight // Collision check uses actual balloon body height
             };
 
-            // Check for overlaps
             overlaps = checkOverlap(potentialRect);
 
             if (!overlaps) {
@@ -167,7 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (attempts >= maxAttempts) {
             console.warn("Could not find non-overlapping position for balloon, placing randomly.");
-            finalX = Math.random() * (vw - balloonWidth - margin * 2) + margin;
+            // Use CURRENT size for fallback placement
+            finalX = Math.random() * (vw - currentWidth - margin * 2) + margin;
             finalY = Math.random() * (vh - totalHeight - margin * 2) + margin;
         }
 
@@ -243,11 +253,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Confetti
-        const intensity = 1 - ((count -1) / (parseInt(getCookie(initialCountIntensityCookieKey)) || 10)); // Intensity based on initial count
-        const particleCount = 50 + Math.floor(intensity * 250);
+        const initialCount = parseInt(getCookie(initialCountIntensityCookieKey)) || 30;
+        const intensity = Math.max(0, 1 - ((count - 1) / initialCount));
+        const particleCount = 80 + Math.floor(intensity * 220);
         const spread = 70 + Math.floor(intensity * 80);
-        confetti({ particleCount: particleCount / 2, angle: 60, spread: spread, origin: { x: 0 } });
-        confetti({ particleCount: particleCount / 2, angle: 120, spread: spread, origin: { x: 1 } });
+
+        // ***** ADD LOGS FOR DEBUGGING *****
+        console.log(`Confetti Debug: count=${count}, initial=${initialCount}, intensity=${intensity.toFixed(2)}, particleCount=${particleCount}, spread=${spread}`);
+        // ***** END LOGS *****
+
+        // Check if confetti function exists before calling
+        if (typeof confetti === 'function') {
+            confetti({ particleCount: Math.ceil(particleCount / 2), angle: 60, spread: spread, origin: { x: 0 } });
+            confetti({ particleCount: Math.floor(particleCount / 2), angle: 120, spread: spread, origin: { x: 1 } });
+            console.log("Called confetti() functions."); // Confirm calls happened
+        } else {
+            console.log("Confetti function not found!");
+        }
 
         // Add popped class for animation
         balloonElement.classList.add('popped');
@@ -488,29 +510,29 @@ document.addEventListener('DOMContentLoaded', () => {
             left += dx;
             top += dy;
 
-            // Bounce off edges (consider balloon dimensions)
-            const balloonWidth = parseFloat(balloon.style.width) || 80;
-            const balloonHeight = parseFloat(balloon.style.height) || 105;
+            // Bounce off edges - Use stored dimensions from dataset
+            const balloonWidth = parseFloat(balloon.dataset.width) || baseBalloonWidth; // Fallback to base
+            const balloonHeight = parseFloat(balloon.dataset.height) || baseBalloonHeight; // Fallback to base
 
             // Left edge
             if (left < 0) {
                 left = 0;
-                dx = Math.abs(dx); // Reverse horizontal direction
+                dx = Math.abs(dx);
             }
             // Right edge
             if (left + balloonWidth > vw) {
                 left = vw - balloonWidth;
-                dx = -Math.abs(dx); // Reverse horizontal direction
+                dx = -Math.abs(dx);
             }
             // Top edge
             if (top < 0) {
                 top = 0;
-                dy = Math.abs(dy); // Reverse vertical direction
+                dy = Math.abs(dy);
             }
-            // Bottom edge (consider string visually, but maybe bounce balloon body)
-            if (top + balloonHeight > vh) { // Bounce based on balloon body, not string
+            // Bottom edge
+            if (top + balloonHeight > vh) {
                 top = vh - balloonHeight;
-                dy = -Math.abs(dy); // Reverse vertical direction
+                dy = -Math.abs(dy);
             }
 
             // Occasional random nudge
