@@ -82,8 +82,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- End Cookie Helper Functions ---
 
+    // --- Sound Limiting ---
+    let activeSoundCount = 0;
+    const maxActiveSounds = 3;
+    // --- End Sound Limiting ---
+
     let count = parseInt(getCookie(countCookieKey)) || 30;
     let initialCountForIntensity = parseInt(getCookie(initialCountIntensityCookieKey)) || count;
+
+    // --- Sound Playing Helper ---
+    function playSound(src) {
+        if (activeSoundCount >= maxActiveSounds) {
+            // console.log("Max sound limit reached, skipping:", src); // Optional debug log
+            return; // Skip playing if limit reached
+        }
+
+        activeSoundCount++;
+        // console.log("Playing sound, active count:", activeSoundCount); // Optional debug log
+
+        try {
+            const audio = new Audio(src);
+
+            // Decrement count when sound ends or if error occurs
+            const onEndOrError = () => {
+                activeSoundCount = Math.max(0, activeSoundCount - 1); // Ensure count doesn't go below 0
+                // console.log("Sound ended/error, active count:", activeSoundCount); // Optional debug log
+                // Remove listeners to prevent memory leaks
+                audio.removeEventListener('ended', onEndOrError);
+                audio.removeEventListener('error', onEndOrError);
+            };
+
+            audio.addEventListener('ended', onEndOrError);
+            audio.addEventListener('error', onEndOrError); // Also decrement on load/decode error
+
+            audio.play().catch(error => {
+                console.error(`Sound playback failed for ${src}:`, error);
+                onEndOrError(); // Decrement count if play() promise rejects
+            });
+
+        } catch (error) {
+            console.error(`Failed to create or play audio for ${src}:`, error);
+            // Decrement count if 'new Audio()' or initial setup fails
+             activeSoundCount = Math.max(0, activeSoundCount - 1);
+             // console.log("Sound creation error, active count:", activeSoundCount); // Optional debug log
+        }
+    }
+    // --- End Sound Playing Helper ---
 
     // --- Balloon Logic ---
     function checkOverlap(newBalloonRect) {
@@ -212,32 +256,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageIndex = absolutePapersDropped % paperMessages.length;
         const message = paperMessages[messageIndex];
 
-        // --- Play Sounds ---
+        // --- Play Sounds (using helper) ---
         // Play random balloon pop sound immediately
         if (balloonPopSounds.length > 0) {
             const randomPopIndex = Math.floor(Math.random() * balloonPopSounds.length);
             const selectedPopSound = balloonPopSounds[randomPopIndex];
-            try {
-                const audio = new Audio(selectedPopSound);
-                audio.play().catch(error => console.error(`Balloon pop sound failed: ${selectedPopSound}`, error));
-            } catch (error) {
-                console.error(`Failed to create audio for ${selectedPopSound}:`, error);
-            }
+            playSound(selectedPopSound); // Use helper
         }
-
         // Play random clap sound slightly delayed
         setTimeout(() => {
             if (clapSounds.length > 0) {
                  const randomClapIndex = Math.floor(Math.random() * clapSounds.length);
                  const selectedClapSound = clapSounds[randomClapIndex];
-                 try {
-                    const audio = new Audio(selectedClapSound);
-                    audio.play().catch(error => console.error(`Clap sound failed: ${selectedClapSound}`, error));
-                 } catch (error) {
-                    console.error(`Failed to create audio for ${selectedClapSound}:`, error);
-                 }
+                 playSound(selectedClapSound); // Use helper
             }
-        }, 50); // 50ms delay
+        }, 50);
+        // Play paper sound (moved from paper drop section to group sounds)
+        playSound('assets/paper-1.mp3'); // Use helper
         // --- End Sounds ---
 
         // --- Visual Effects ---
@@ -276,18 +311,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- End Visual Effects ---
 
         // --- Handle Paper Drop ---
-        // Play paper sound
-        try {
-            const paperAudio = new Audio('assets/paper-1.mp3');
-            paperAudio.play().catch(error => console.error("Paper sound failed:", error));
-        } catch (error) {
-            console.error("Failed to create audio for paper sound:", error);
-        }
-
         // Create the FALLING paper element
         const fallingPaper = document.createElement('div');
         fallingPaper.classList.add('paper');
-        // ... add message span to fallingPaper ...
         const messageSpan = document.createElement('span');
         messageSpan.classList.add('paper-message');
         messageSpan.textContent = message;
