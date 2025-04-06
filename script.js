@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // Wait for the DOM to be fully loaded before running script logic
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -57,221 +59,346 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let count = parseInt(getCookie('countdownCount')) || 10;
 
-    // --- Balloon Logic ---
-    function checkOverlap(newBalloonRect) {
-        // Check overlap with central counter
-        if (countdownButton) {
-            const counterRect = countdownButton.getBoundingClientRect();
-            if (
-                newBalloonRect.left < counterRect.right &&
-                newBalloonRect.right > counterRect.left &&
-                newBalloonRect.top < counterRect.bottom &&
-                newBalloonRect.bottom > counterRect.top
-            ) {
-                return true; // Overlaps with counter
-            }
-        }
+    // --- Global Variables ---
+    let scene, camera, renderer;
+    let balloons = []; // Array to hold balloon meshes and data
+    const clock = new THREE.Clock();
 
-        // Check overlap with existing balloons
-        const existingBalloons = balloonContainer.querySelectorAll('.balloon');
-        for (const existing of existingBalloons) {
-            const existingRect = existing.getBoundingClientRect();
-             if (
-                newBalloonRect.left < existingRect.right &&
-                newBalloonRect.right > existingRect.left &&
-                newBalloonRect.top < existingRect.bottom &&
-                newBalloonRect.bottom > existingRect.top
-            ) {
-                return true; // Overlaps with another balloon
-            }
-        }
+    // --- Event Listeners Setup ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
-        return false; // No overlap found
+    // --- Initialization ---
+    function init() {
+        // Scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x333333); // Dark grey background
+
+        // Camera
+        const fov = 75;
+        const aspect = window.innerWidth / window.innerHeight;
+        const near = 0.1;
+        const far = 100;
+        camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 15; // Adjust distance as needed
+
+        // Renderer
+        const canvas = document.getElementById('webgl-canvas');
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add(directionalLight);
+
+        // Get DOM Elements
+        countdownButton = document.getElementById('countdown-button');
+        messageDiv = document.getElementById('message');
+        changeCountButton = document.getElementById('change-count-button');
+        modalOverlay = document.getElementById('modal-overlay');
+        modalInput = document.getElementById('modal-input');
+        modalSubmit = document.getElementById('modal-submit');
+        modalCancel = document.getElementById('modal-cancel');
+        modalError = document.getElementById('modal-error');
+
+        // Initial Setup
+        // Store initial count for confetti calculation
+        setCookie('initialCountForIntensity', count, 7);
+        updateDisplay(); // Update counter, create initial balloons
+        addEventListeners(); // Setup UI interactions
+
+        // Start Animation Loop
+        animate();
     }
 
-    function createBalloon(id) {
-        if (!balloonContainer) return;
+    // --- Balloon Creation ---
+    // Define geometry and materials outside the function for reuse
+    const balloonGeometry = new THREE.SphereGeometry(1, 32, 16); // Radius 1, adjust segments as needed
+    balloonGeometry.scale(1, 1.2, 1); // Scale vertically for balloon shape
 
-        const balloon = document.createElement('div');
-        balloon.classList.add('balloon');
-        balloon.dataset.id = id;
+    const balloonMaterials = pastelColors.map(color => new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: 0.4, // Adjust for shininess
+        metalness: 0.1 // Low metalness for plastic/rubber look
+    }));
 
-        // Assign random pastel color
-        const randomColor = pastelColors[Math.floor(Math.random() * pastelColors.length)];
-        balloon.classList.add(randomColor);
+    function createBalloons() {
+        // Clear existing balloons from scene and array
+        balloons.forEach(b => {
+            scene.remove(b.mesh);
+            // Optional: Dispose geometry/material if memory becomes an issue
+            // b.mesh.geometry.dispose();
+            // b.mesh.material.dispose();
+        });
+        balloons = [];
 
-        // Get balloon dimensions (approximated from CSS for initial check)
-        // Update dimensions to match new CSS
-        const balloonWidth = 80;
-        const balloonHeight = 105;
-        const totalHeight = balloonHeight + 30; // Include string space for initial placement
-        const margin = 10;
+        // Determine view boundaries (approximate based on camera Z and FOV)
+        const vFov = THREE.MathUtils.degToRad(camera.fov); // Vertical FOV in radians
+        const height = 2 * Math.tan(vFov / 2) * camera.position.z;
+        const width = height * camera.aspect;
+        const spawnArea = {
+            x: width * 0.8, // Spawn within 80% of view width
+            y: height * 0.8, // Spawn within 80% of view height
+            z: 5 // Spawn slightly in front of the background
+        };
 
-        const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-        const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+        for (let i = 0; i < count; i++) {
+            const material = balloonMaterials[i % balloonMaterials.length]; // Cycle through materials
+            const balloonMesh = new THREE.Mesh(balloonGeometry, material);
 
-        let attempts = 0;
-        const maxAttempts = 50;
-        let overlaps = true;
-        let finalX = 0, finalY = 0;
-
-        while (overlaps && attempts < maxAttempts) {
-            attempts++;
             // Random initial position
-            // Ensure position allows for balloon dimensions + margin + string within viewport
-            const startX = Math.random() * (vw - balloonWidth - margin * 2) + margin;
-            const startY = Math.random() * (vh - totalHeight - margin * 2) + margin;
+            balloonMesh.position.x = (Math.random() - 0.5) * spawnArea.x;
+            balloonMesh.position.y = (Math.random() - 0.5) * spawnArea.y;
+            balloonMesh.position.z = (Math.random() - 0.5) * spawnArea.z;
 
-            // Calculate potential bounding box (using balloon dimensions only for collision)
-            const potentialRect = {
-                left: startX,
-                top: startY,
-                right: startX + balloonWidth,
-                bottom: startY + balloonHeight // Collision check ignores the string
+            // Add user data for velocity, etc.
+            balloonMesh.userData = {
+                id: i,
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.5, // Reduced initial speed
+                    (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * 0.1 // Less Z movement
+                ),
+                isPopped: false
             };
 
-            // Check for overlaps
-            overlaps = checkOverlap(potentialRect);
+            // Assign a name for easier identification during raycasting/popping
+            balloonMesh.name = `balloon_${i}`;
 
-            if (!overlaps) {
-                finalX = startX;
-                finalY = startY;
-            }
+            balloons.push({ mesh: balloonMesh, data: balloonMesh.userData });
+            scene.add(balloonMesh);
         }
-
-        if (attempts >= maxAttempts) {
-            console.warn("Could not find non-overlapping position for balloon, placing randomly.");
-            finalX = Math.random() * (vw - balloonWidth - margin * 2) + margin;
-            finalY = Math.random() * (vh - totalHeight - margin * 2) + margin;
-        }
-
-        balloon.style.left = `${finalX}px`;
-        balloon.style.top = `${finalY}px`;
-
-        // Initialize random velocity for animation
-        balloon.dataset.dx = (Math.random() - 0.5) * 2 * speedFactor;
-        balloon.dataset.dy = (Math.random() - 0.5) * 2 * speedFactor;
-
-        balloon.addEventListener('click', () => popBalloon(balloon));
-        balloonContainer.appendChild(balloon);
     }
 
-    function renderBalloons() {
-        if (!balloonContainer) return;
-        balloonContainer.innerHTML = '';
-        for (let i = 0; i < count; i++) {
-            createBalloon(i);
-        }
+    // --- Update Display / UI ---
+    function updateDisplay() {
         if (countdownButton) {
             countdownButton.textContent = count;
+            countdownButton.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+        if (messageDiv) {
+             messageDiv.style.display = count <= 0 ? 'block' : 'none';
+             if (count <= 0) messageDiv.textContent = 'You did it! 🎉';
+        }
+
+        // Trigger balloon creation/re-creation
+        createBalloons();
+    }
+
+    // --- Animation Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const deltaTime = clock.getDelta();
+
+        // Calculate view boundaries for bouncing
+        const vFov = THREE.MathUtils.degToRad(camera.fov);
+        const viewHeight = 2 * Math.tan(vFov / 2) * camera.position.z;
+        const viewWidth = viewHeight * camera.aspect;
+        const bounds = {
+            x: viewWidth / 2,
+            y: viewHeight / 2,
+            z: 5 // Match approximate spawn depth limit
+        };
+
+        // Animate balloons
+        balloons.forEach(balloonData => {
+            const mesh = balloonData.mesh;
+            const velocity = balloonData.data.velocity;
+
+            if (balloonData.data.isPopped) return; // Skip popped balloons
+
+            // Update position
+            mesh.position.x += velocity.x * deltaTime * 50; // Scale velocity by time and factor
+            mesh.position.y += velocity.y * deltaTime * 50;
+            mesh.position.z += velocity.z * deltaTime * 50;
+
+            // Bounce off boundaries
+            const radius = mesh.geometry.parameters.radius * mesh.scale.y; // Approximate radius considering scale
+            // X bounds
+            if (Math.abs(mesh.position.x) + radius > bounds.x) {
+                velocity.x *= -1;
+                mesh.position.x = Math.sign(mesh.position.x) * (bounds.x - radius); // Prevent sticking
+            }
+            // Y bounds
+            if (Math.abs(mesh.position.y) + radius > bounds.y) {
+                velocity.y *= -1;
+                 mesh.position.y = Math.sign(mesh.position.y) * (bounds.y - radius); // Prevent sticking
+            }
+            // Z bounds (simple bounce, less critical)
+            if (Math.abs(mesh.position.z) > bounds.z) { // Z bounce is simpler
+                velocity.z *= -1;
+                mesh.position.z = Math.sign(mesh.position.z) * bounds.z;
+            }
+
+             // Add slight random nudge over time (optional, can be refined)
+             const nudgeFactor = 0.01;
+             velocity.x += (Math.random() - 0.5) * nudgeFactor * deltaTime;
+             velocity.y += (Math.random() - 0.5) * nudgeFactor * deltaTime;
+             // Keep velocity reasonable
+             velocity.clampLength(0.1, 1.0); // Min/Max speed
+
+        });
+
+        renderer.render(scene, camera);
+    }
+
+    // --- Event Listeners (Placeholders/Basic Setup) ---
+    function addEventListeners() {
+        // Window Resize
+        window.addEventListener('resize', onWindowResize, false);
+
+        // Canvas Click (Balloon Pop)
+        if (renderer && renderer.domElement) {
+            renderer.domElement.addEventListener('click', onCanvasClick, false);
+        } else {
+            console.error("Renderer or canvas not ready for click listener.");
+        }
+
+        // Central Counter Click (Random Pop)
+        if (countdownButton) {
+            countdownButton.addEventListener('click', onCounterClick, false);
+        }
+
+        // Modal Interactions
+        if (changeCountButton && modalOverlay && modalInput && modalCancel && modalSubmit && modalError) {
+            changeCountButton.addEventListener('click', () => {
+                modalInput.value = count > 0 ? count : 10;
+                modalError.textContent = '';
+                modalOverlay.classList.remove('hidden');
+                modalInput.focus();
+            });
+            modalCancel.addEventListener('click', () => {
+                modalOverlay.classList.add('hidden');
+            });
+            modalSubmit.addEventListener('click', () => {
+                const newCountStr = modalInput.value;
+                const newCount = parseInt(newCountStr);
+                if (isNaN(newCount) || newCount <= 0 || !Number.isInteger(newCount)) {
+                    modalError.textContent = 'Please enter a positive whole number.';
+                    modalInput.focus();
+                } else {
+                    count = newCount;
+                    setCookie('countdownCount', count, 7);
+                    setCookie('initialCountForIntensity', count, 7);
+                    updateDisplay();
+                    modalOverlay.classList.add('hidden');
+                    // Note: Background color is now handled by scene background
+                }
+            });
+            modalOverlay.addEventListener('click', (event) => {
+                if (event.target === modalOverlay) {
+                    modalOverlay.classList.add('hidden');
+                }
+            });
+            modalInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    modalSubmit.click();
+                }
+            });
+        } else {
+            console.error("Modal elements not found!");
         }
     }
 
-    function popBalloon(balloonElement, isRandom = false) {
-        if (!balloonElement || balloonElement.classList.contains('popped')) return;
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
 
-        // --- Play Sounds ---
-        // Play random balloon pop sound immediately
-        if (balloonPopSounds.length > 0) {
-            const randomPopIndex = Math.floor(Math.random() * balloonPopSounds.length);
-            const selectedPopSound = balloonPopSounds[randomPopIndex];
-            try {
-                const audio = new Audio(selectedPopSound);
-                audio.play().catch(error => console.error(`Balloon pop sound failed: ${selectedPopSound}`, error));
-            } catch (error) {
-                console.error(`Failed to create audio for ${selectedPopSound}:`, error);
-            }
-        }
+    // --- Click Handling ---
+    // ... onCanvasClick ...
+    // ... onCounterClick ...
 
-        // Play random clap sound slightly delayed
-        setTimeout(() => {
-            if (clapSounds.length > 0) {
+    // --- Pop Logic Implementation ---
+    function popBalloon(balloonData) {
+         if (!balloonData || balloonData.data.isPopped) return; // Check if already popped or invalid
+
+         balloonData.data.isPopped = true; // Mark as popped immediately
+         const mesh = balloonData.mesh;
+
+         // --- Sounds ---
+         if (balloonPopSounds.length > 0) {
+             const randomPopIndex = Math.floor(Math.random() * balloonPopSounds.length);
+             const selectedPopSound = balloonPopSounds[randomPopIndex];
+             try {
+                 const audio = new Audio(selectedPopSound);
+                 audio.play().catch(error => console.error(`Balloon pop sound failed: ${selectedPopSound}`, error));
+             } catch (error) {
+                 console.error(`Failed to create audio for ${selectedPopSound}:`, error);
+             }
+         }
+         setTimeout(() => {
+             if (clapSounds.length > 0) {
                  const randomClapIndex = Math.floor(Math.random() * clapSounds.length);
                  const selectedClapSound = clapSounds[randomClapIndex];
                  try {
-                    const audio = new Audio(selectedClapSound);
-                    audio.play().catch(error => console.error(`Clap sound failed: ${selectedClapSound}`, error));
+                     const audio = new Audio(selectedClapSound);
+                     audio.play().catch(error => console.error(`Clap sound failed: ${selectedClapSound}`, error));
                  } catch (error) {
-                    console.error(`Failed to create audio for ${selectedClapSound}:`, error);
+                     console.error(`Failed to create audio for ${selectedClapSound}:`, error);
                  }
-            }
-        }, 50); // 50ms delay
-        // --- End Sounds ---
+             }
+         }, 50); // 50ms delay
+         // --- End Sounds ---
 
-        // --- Visual Effects ---
-        // Background Flash (only if count > 1 before popping)
-        if (count > 1) {
-             document.body.style.backgroundColor = '#fff';
-             setTimeout(() => {
-                 // Check count hasn't hit zero during the flash
-                 if (count > 0) {
-                    document.body.style.backgroundColor = '#333';
-                 }
-             }, 200);
-        }
+         // --- Visual Effects ---
+         // Confetti
+         const initialCount = parseInt(getCookie('initialCountForIntensity')) || 10;
+         const intensity = Math.max(0, 1 - ((count - 1) / initialCount)); // Ensure intensity doesn't go below 0
+         const particleCount = 50 + Math.floor(intensity * 250);
+         const spread = 70 + Math.floor(intensity * 80);
+         if (typeof confetti === 'function') {
+             confetti({ particleCount: particleCount / 2, angle: 60, spread: spread, origin: { x: 0 } });
+             confetti({ particleCount: particleCount / 2, angle: 120, spread: spread, origin: { x: 1 } });
+         }
 
-        // Confetti
-        const intensity = 1 - ((count -1) / (parseInt(getCookie('initialCountForIntensity')) || 10)); // Intensity based on initial count
-        const particleCount = 50 + Math.floor(intensity * 250);
-        const spread = 70 + Math.floor(intensity * 80);
-        confetti({ particleCount: particleCount / 2, angle: 60, spread: spread, origin: { x: 0 } });
-        confetti({ particleCount: particleCount / 2, angle: 120, spread: spread, origin: { x: 1 } });
+         // Simple Pop Animation: Scale down
+         let scale = 1.0;
+         const scaleFactor = mesh.scale.y / mesh.scale.x; // Preserve original aspect ratio
+         const popInterval = setInterval(() => {
+             scale -= 0.08; // Speed of pop animation
+             if (scale <= 0) {
+                 clearInterval(popInterval);
+                 scene.remove(mesh);
+             } else {
+                 mesh.scale.set(scale, scale * scaleFactor, scale);
+             }
+         }, 16); // ~60fps
+         // --- End Visual Effects & Animation ---
 
-        // Add popped class for animation
-        balloonElement.classList.add('popped');
-        // --- End Visual Effects ---
+         // --- Update State ---
+         count--;
+         setCookie('countdownCount', count, 7);
 
-        // --- Update State (after animation) ---
-        setTimeout(() => {
-            count--;
-            setCookie('countdownCount', count, 7);
+         if (countdownButton) {
+             countdownButton.textContent = count;
+         }
 
-            if (countdownButton) {
-                countdownButton.textContent = count;
-            }
-            if (balloonElement.parentNode) {
-                balloonElement.parentNode.removeChild(balloonElement);
-            }
-
-            // Check for finish state
-            if (count <= 0) {
-                if (messageDiv) {
-                    messageDiv.textContent = 'You did it! 🎉';
-                    messageDiv.style.display = 'block';
-                }
-                if (countdownButton) countdownButton.style.display = 'none';
-                document.body.style.backgroundColor = '#fff'; // Final white background
-                if (balloonContainer) balloonContainer.innerHTML = '';
-                // Final confetti blast on finish
-                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
-                confetti({ particleCount: 150, spread: 120, origin: { y: 0.8 }, angle: 90 });
-            }
-        }, 200); // Match timeout to CSS transition duration
+         if (count <= 0) {
+             if (messageDiv) {
+                 messageDiv.textContent = 'You did it! 🎉';
+                 messageDiv.style.display = 'block';
+             }
+             if (countdownButton) countdownButton.style.display = 'none';
+             if (typeof confetti === 'function') {
+                 confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+                 confetti({ particleCount: 150, spread: 120, origin: { y: 0.8 }, angle: 90 });
+             }
+             // Optional: Change scene background on finish?
+             // scene.background = new THREE.Color(0xffffff);
+         }
     }
 
-    function updateDisplay() {
-        if (!countdownButton || !messageDiv) return;
-
-        renderBalloons();
-
-        if (count <= 0) {
-            countdownButton.style.display = 'none';
-            messageDiv.textContent = 'You did it! 🎉';
-            messageDiv.style.display = 'block';
-            document.body.style.backgroundColor = '#fff';
-            if (balloonContainer) balloonContainer.innerHTML = '';
-        } else {
-            countdownButton.textContent = count;
-            countdownButton.style.display = 'inline-block';
-            messageDiv.style.display = 'none';
-            document.body.style.backgroundColor = '#333';
-        }
-    }
-
-    // Initialize display on load
-    // Need to store initial count for confetti intensity calculation
-    setCookie('initialCountForIntensity', count, 7);
-    updateDisplay();
+    // --- Start --- 
+    // Use DOMContentLoaded to ensure canvas and UI elements are ready
+    init();
 
     // --- Animation Loop ---
     let lastNudgeTime = 0;

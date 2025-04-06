@@ -3,23 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Countdown Party</title>
+    <title>PartyDown 3D</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Include Three.js Library -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/"
+        }
+      }
+    </script>
 </head>
 <body>
+    <!-- 3D Canvas - Will be behind other elements -->
+    <canvas id="webgl-canvas"></canvas>
 
     <div id="project-title">PartyDown</div>
     <button id="change-count-button" title="Change Start Count">⚙️</button>
 
     <!-- This button will now display count and trigger random pop -->
     <button id="countdown-button"></button>
-    <div id="balloon-container"></div> <!-- Container for balloons -->
+    <!-- <div id="balloon-container"></div> --> <!-- Removed 2D container -->
     <div id="message"></div>
 
     <div id="dedication">For the best girl I know. May you ever be motivated and celebrated.</div>
 
+    <!-- <audio id="pop-sound" src="assets/pop.mp3" preload="auto"></audio> --> <!-- Removed 2D pop sound -->
+
+    <!-- Confetti library remains for now -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-    <script src="script.js"></script>
+
+    <!-- Main script - Will use Three.js via import map -->
+    <script type="module" src="script.js"></script>
 
     <!-- Change Count Modal -->
     <div id="modal-overlay" class="hidden">
