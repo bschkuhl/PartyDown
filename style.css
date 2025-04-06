@@ -25,6 +25,7 @@ body {
     font-family: sans-serif;
     transition: background-color 0.3s ease;
     overflow: hidden; /* Hide balloons that might float off-screen */
+    overscroll-behavior: none; /* Prevent mobile bounce/overscroll */
 }
 
 #countdown-button {
