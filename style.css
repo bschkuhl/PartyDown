@@ -1,3 +1,20 @@
+/* @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap'); */ /* Remove Pacifico */
+/* NOTE: '3Dumb' is not a standard Google Font name. This URL is a guess. */
+/* Please verify the correct font name and provider if this doesn't work. */
+/* @import url('https://fonts.googleapis.com/css2?family=3Dumb&display=swap'); */
+
+/* Import Montserrat */
+/* @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap'); */
+
+/* Define locally downloaded font */
+@font-face {
+  font-family: '3DumbFont'; /* Choose a name for your font */
+  /* Update path and format if your file is different (e.g., .otf, .woff2) */
+  src: url('assets/3dumb/3Dumb.ttf') format('truetype'); 
+  font-weight: normal;
+  font-style: normal;
+}
+
 body {
     display: flex;
     justify-content: center;
@@ -12,9 +29,11 @@ body {
 
 #countdown-button {
     /* padding: 20px 40px; */ /* Removed padding */
-    font-size: 3em;
-    /* cursor: pointer; */ /* Old cursor */
-    cursor: crosshair; /* Change cursor to crosshair/pin */
+    font-size: 5.5em; /* Adjusted size again for new font */
+    /* font-family: 'Montserrat', sans-serif; */ /* Old font */
+    font-family: '3DumbFont', sans-serif; /* Use name defined in @font-face */
+    /* font-weight: 700; */ /* Remove explicit weight */
+    cursor: pointer; /* Change back to pointer */
     border: none;
     /* border-radius: 10px; */ /* Removed border radius */
     background-color: transparent; /* Make background transparent */
