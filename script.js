@@ -51,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
         "Miracles happen daily.", "Celebrate your uniqueness."
     ];
 
+    // --- Storage Keys ---
+    const countCookieKey = 'countdownCount';
+    const initialCountIntensityCookieKey = 'initialCountForIntensity';
+    const initialTotalAssessmentsCookieKey = 'initialTotalAssessments';
+    const landedPapersStorageKey = 'landedPapersData'; // Using localStorage now
+
     // --- Cookie Helper Functions ---
     function setCookie(name, value, days) {
         let expires = "";
@@ -74,8 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- End Cookie Helper Functions ---
 
-    let count = parseInt(getCookie('countdownCount')) || 25;
-    let initialCountForIntensity = count;
+    let count = parseInt(getCookie(countCookieKey)) || 25;
+    let initialCountForIntensity = parseInt(getCookie(initialCountIntensityCookieKey)) || count;
 
     // --- Balloon Logic ---
     function checkOverlap(newBalloonRect) {
@@ -191,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!balloonElement || balloonElement.classList.contains('popped')) return;
 
         // --- Calculate message index BEFORE decrementing count ---
-        const totalInitialCount = parseInt(getCookie('initialTotalAssessments')) || 25;
+        const totalInitialCount = parseInt(getCookie(initialTotalAssessmentsCookieKey)) || 25;
         const absolutePapersDropped = totalInitialCount - count;
         const messageIndex = absolutePapersDropped % paperMessages.length;
         const message = paperMessages[messageIndex];
@@ -237,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Confetti
-        const intensity = 1 - ((count -1) / (parseInt(getCookie('initialCountForIntensity')) || 10)); // Intensity based on initial count
+        const intensity = 1 - ((count -1) / (parseInt(getCookie(initialCountIntensityCookieKey)) || 10)); // Intensity based on initial count
         const particleCount = 50 + Math.floor(intensity * 250);
         const spread = 70 + Math.floor(intensity * 80);
         confetti({ particleCount: particleCount / 2, angle: 60, spread: spread, origin: { x: 0 } });
@@ -256,53 +262,112 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Failed to create audio for paper sound:", error);
         }
 
-        const paper = document.createElement('div');
-        paper.classList.add('paper');
-        
-        // Add message span inside paper
+        // Create the FALLING paper element
+        const fallingPaper = document.createElement('div');
+        fallingPaper.classList.add('paper');
+        // ... add message span to fallingPaper ...
         const messageSpan = document.createElement('span');
         messageSpan.classList.add('paper-message');
         messageSpan.textContent = message;
-        paper.appendChild(messageSpan);
+        fallingPaper.appendChild(messageSpan);
         
-        const startOffset = (Math.random() - 0.5) * 100;
-        paper.style.left = `calc(50% + ${startOffset}px)`;
+        // Set horizontal position for falling paper
+        const startX = Math.random() * (window.innerWidth - 50);
+        fallingPaper.style.left = `${startX}px`; 
 
+        // Add to fall area and start animation
         if (paperFallArea) {
-            paperFallArea.appendChild(paper);
+            paperFallArea.appendChild(fallingPaper);
         }
-        paper.classList.add('falling');
+        fallingPaper.classList.add('falling');
 
-        paper.addEventListener('animationend', () => {
-            const landedPaper = paper.cloneNode(true); // Clone includes the message span
-            landedPaper.classList.remove('falling');
-            landedPaper.style.animation = 'none';
+        // --- Create LANDED paper (initially hidden) --- 
+        const landedPaper = fallingPaper.cloneNode(true); // Clone includes message
+        landedPaper.classList.remove('falling');
+        landedPaper.style.animation = 'none';
+        landedPaper.style.position = 'absolute'; // Needed for bottom/left positioning
+        landedPaper.style.top = 'auto'; // Make sure 'top' isn't interfering
 
-            const containerWidth = landedPapersContainer.offsetWidth;
-            const paperWidth = parseFloat(getComputedStyle(landedPaper).width) || 50; // Use computed style
-            const landX = Math.random() * (containerWidth - paperWidth);
-            const landRotation = (Math.random() - 0.5) * 30;
-            const landYOffset = Math.random() * 20 - 10;
+        // Calculate final resting place
+        const containerWidth = landedPapersContainer.offsetWidth;
+        const paperWidth = 50;
+        const landX = Math.random() * (containerWidth - paperWidth);
+        const landRotation = (Math.random() - 0.5) * 30;
+        const finalBottom = Math.random() * 20 - 10; // Final vertical offset
 
-            landedPaper.style.position = 'absolute';
-            landedPaper.style.bottom = `${landYOffset}px`;
-            landedPaper.style.left = `${landX}px`;
+        // Set final horizontal position and rotation
+        landedPaper.style.left = `${landX}px`;
+        landedPaper.style.transform = `rotate(${landRotation}deg)`;
+        // CSS rule #landed-papers-container .paper sets initial bottom/opacity
+
+        // Add landed paper to its container (it starts hidden below)
+        if (landedPapersContainer) {
+            landedPapersContainer.appendChild(landedPaper);
+        }
+
+        // Listener for FALLING paper animation end
+        fallingPaper.addEventListener('animationend', () => {
+            // Clean up the falling paper element
+            if (fallingPaper.parentNode) {
+                fallingPaper.parentNode.removeChild(fallingPaper);
+            }
+
+            // --- Save and Display Landed Paper --- 
+            // 1. Prepare data for the new paper
+            const newLandedPaperData = {
+                message: message, // Message calculated earlier
+                left: landX,      // Final X calculated earlier
+                bottom: finalBottom, // Final Bottom calculated earlier
+                rotation: landRotation // Final rotation calculated earlier
+            };
+
+            // 2. Load existing, add new, save back to localStorage
+            let savedPapers = [];
+            const savedPapersJSON = localStorage.getItem(landedPapersStorageKey);
+            if (savedPapersJSON) {
+                try {
+                    savedPapers = JSON.parse(savedPapersJSON);
+                } catch (e) {
+                    console.error("Error parsing saved paper data before saving:", e);
+                    savedPapers = []; // Start fresh if data is corrupt
+                }
+            }
+            savedPapers.push(newLandedPaperData);
+            localStorage.setItem(landedPapersStorageKey, JSON.stringify(savedPapers));
+
+            // 3. Create and display the visual element for the new paper
+            const landedPaper = document.createElement('div');
+            landedPaper.classList.add('paper');
+            const msgSpan = document.createElement('span');
+            msgSpan.classList.add('paper-message');
+            msgSpan.textContent = newLandedPaperData.message;
+            landedPaper.appendChild(msgSpan);
+
+            // Set final position/rotation (starts hidden by CSS)
+            landedPaper.style.position = 'absolute'; 
+            landedPaper.style.left = `${newLandedPaperData.left}px`;
+            landedPaper.style.transform = `rotate(${newLandedPaperData.rotation}deg)`;
             landedPaper.style.top = 'auto';
-            landedPaper.style.transform = `rotate(${landRotation}deg)`;
-
+            // Initial bottom/opacity set by #landed-papers-container .paper CSS
+            
             if (landedPapersContainer) {
                 landedPapersContainer.appendChild(landedPaper);
             }
-            if (paper.parentNode) {
-                paper.parentNode.removeChild(paper);
-            }
+
+            // Trigger the LANDED paper animation IN (slide up/fade in)
+             setTimeout(() => {
+                landedPaper.style.bottom = `${newLandedPaperData.bottom}px`;
+                landedPaper.style.opacity = 1;
+             }, 10); 
+            // --- End Save and Display --- 
+
         }, { once: true });
-        // --- End Handle Paper Drop ---
+        // --- End Handle Paper Drop --- 
 
         // --- Update State (after balloon animation timeout) ---
         setTimeout(() => {
             count--;
-            setCookie('countdownCount', count, 7);
+            setCookie(countCookieKey, count, 7);
 
             if (countdownButton) {
                 countdownButton.textContent = count;
@@ -342,28 +407,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Initialize display on load
     function initializeState() {
-        count = parseInt(getCookie('countdownCount')) || 25;
-        initialCountForIntensity = count;
-        setCookie('initialCountForIntensity', initialCountForIntensity, 7);
+        // Load counts
+        count = parseInt(getCookie(countCookieKey)) || 25;
+        initialCountForIntensity = parseInt(getCookie(initialCountIntensityCookieKey)) || count;
         
         // Store the absolute initial count if not already set
-        if (!getCookie('initialTotalAssessments')) {
-            setCookie('initialTotalAssessments', count, 365);
+        if (!getCookie(initialTotalAssessmentsCookieKey)) {
+            setCookie(initialTotalAssessmentsCookieKey, count, 365);
         }
-        // Remove pile height initialization
-        /*
-        const totalAssessments = ...
-        if (paperPile) {
-            ...
-        }
-        */
-        
-        // Clear any previously landed papers on reload
+
+        // --- Load and Display Landed Papers --- 
         if (landedPapersContainer) {
-            landedPapersContainer.innerHTML = '';
+            landedPapersContainer.innerHTML = ''; // Clear any existing papers visually
+            const savedPapersJSON = localStorage.getItem(landedPapersStorageKey);
+            if (savedPapersJSON) {
+                try {
+                    const savedPapers = JSON.parse(savedPapersJSON);
+                    savedPapers.forEach(paperData => {
+                        // Create the paper element
+                        const paper = document.createElement('div');
+                        paper.classList.add('paper');
+                        
+                        // Add message span
+                        const messageSpan = document.createElement('span');
+                        messageSpan.classList.add('paper-message');
+                        messageSpan.textContent = paperData.message;
+                        paper.appendChild(messageSpan);
+
+                        // Apply saved styles directly (override transition start state)
+                        paper.style.position = 'absolute';
+                        paper.style.left = `${paperData.left}px`;
+                        paper.style.bottom = `${paperData.bottom}px`;
+                        paper.style.top = 'auto'; // Add this again to override base .paper top style
+                        paper.style.transform = `rotate(${paperData.rotation}deg)`;
+                        paper.style.opacity = 1; // Make visible immediately
+                        paper.style.transition = 'none'; // Prevent initial transition
+
+                        landedPapersContainer.appendChild(paper);
+                    });
+                } catch (e) {
+                    console.error("Error parsing saved paper data:", e);
+                    localStorage.removeItem(landedPapersStorageKey); // Clear corrupted data
+                }
+            }
         }
+        // --- End Load Landed Papers ---
 
         updateDisplay();
     }
@@ -487,10 +576,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 count = newCount;
                 initialCountForIntensity = count;
-                setCookie('countdownCount', count, 7);
-                setCookie('initialCountForIntensity', initialCountForIntensity, 7);
-                setCookie('initialTotalAssessments', count, 365);
-                initializeState();
+                setCookie(countCookieKey, count, 7);
+                setCookie(initialCountIntensityCookieKey, initialCountForIntensity, 7);
+                setCookie(initialTotalAssessmentsCookieKey, count, 365);
+                // Clear saved papers when resetting count
+                localStorage.removeItem(landedPapersStorageKey);
+                initializeState(); // Re-initialize state (will clear visual papers)
                 modalOverlay.classList.add('hidden');
                 document.body.style.backgroundColor = '#333';
             }
