@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageDiv = document.getElementById('message');
     const changeCountButton = document.getElementById('change-count-button');
     const balloonContainer = document.getElementById('balloon-container');
+    const paperFallArea = document.getElementById('paper-fall-area');
+    const landedPapersContainer = document.getElementById('landed-papers-container');
 
     // Modal elements
     const modalOverlay = document.getElementById('modal-overlay');
@@ -32,6 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const pastelColors = ['color-1', 'color-2', 'color-3', 'color-4', 'color-5'];
     const speedFactor = 0.8; // Base speed for balloon movement (Reduced from 1.5)
 
+    // Messages for Papers
+    const paperMessages = [
+        "You got this!", "Shine and soar!", "Believe in yourself.", "Enjoy the journey.",
+        "Create your happiness.", "Embrace new possibilities.", "Dreams do come true.", "Always stay hopeful!",
+        "Celebrate small victories.", "Keep smiling bright.", "You're doing great!", "Strive for growth.",
+        "Think happy thoughts.", "Be your best.", "Trust the process.", "Radiate good vibes.",
+        "Stay wonderfully curious.", "Inspire and be inspired.", "Choose joy daily.", "Feel the sunshine.",
+        "Grow with grace.", "Keep moving forward.", "Make today count.", "Shine your light.",
+        "Focus on goodness.", "Positive vibes only.", "Stay bright-hearted.", "Believe and achieve.",
+        "Stay fearless, friend.", "Follow your bliss.", "Bloom where planted.", "Smile every day.",
+        "Progress over perfection.", "Believe in miracles.", "Radiate positivity now.", "Chase your dreams.",
+        "Reflect, then rise.", "You have sparkle!", "Dare to glow.", "Stay open-minded always.",
+        "You are enough.", "Keep your sparkle.", "Let joy in.", "Seize the day!",
+        "You can do it!", "Embrace your power.", "Nurture your passion.", "Thrive on optimism.",
+        "Miracles happen daily.", "Celebrate your uniqueness."
+    ];
+
     // --- Cookie Helper Functions ---
     function setCookie(name, value, days) {
         let expires = "";
@@ -55,7 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- End Cookie Helper Functions ---
 
-    let count = parseInt(getCookie('countdownCount')) || 10;
+    let count = parseInt(getCookie('countdownCount')) || 25;
+    let initialCountForIntensity = count;
 
     // --- Balloon Logic ---
     function checkOverlap(newBalloonRect) {
@@ -170,6 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function popBalloon(balloonElement, isRandom = false) {
         if (!balloonElement || balloonElement.classList.contains('popped')) return;
 
+        // --- Calculate message index BEFORE decrementing count ---
+        const totalInitialCount = parseInt(getCookie('initialTotalAssessments')) || 25;
+        const absolutePapersDropped = totalInitialCount - count;
+        const messageIndex = absolutePapersDropped % paperMessages.length;
+        const message = paperMessages[messageIndex];
+
         // --- Play Sounds ---
         // Play random balloon pop sound immediately
         if (balloonPopSounds.length > 0) {
@@ -221,7 +247,59 @@ document.addEventListener('DOMContentLoaded', () => {
         balloonElement.classList.add('popped');
         // --- End Visual Effects ---
 
-        // --- Update State (after animation) ---
+        // --- Handle Paper Drop ---
+        // Play paper sound
+        try {
+            const paperAudio = new Audio('assets/paper-1.mp3');
+            paperAudio.play().catch(error => console.error("Paper sound failed:", error));
+        } catch (error) {
+            console.error("Failed to create audio for paper sound:", error);
+        }
+
+        const paper = document.createElement('div');
+        paper.classList.add('paper');
+        
+        // Add message span inside paper
+        const messageSpan = document.createElement('span');
+        messageSpan.classList.add('paper-message');
+        messageSpan.textContent = message;
+        paper.appendChild(messageSpan);
+        
+        const startOffset = (Math.random() - 0.5) * 100;
+        paper.style.left = `calc(50% + ${startOffset}px)`;
+
+        if (paperFallArea) {
+            paperFallArea.appendChild(paper);
+        }
+        paper.classList.add('falling');
+
+        paper.addEventListener('animationend', () => {
+            const landedPaper = paper.cloneNode(true); // Clone includes the message span
+            landedPaper.classList.remove('falling');
+            landedPaper.style.animation = 'none';
+
+            const containerWidth = landedPapersContainer.offsetWidth;
+            const paperWidth = parseFloat(getComputedStyle(landedPaper).width) || 50; // Use computed style
+            const landX = Math.random() * (containerWidth - paperWidth);
+            const landRotation = (Math.random() - 0.5) * 30;
+            const landYOffset = Math.random() * 20 - 10;
+
+            landedPaper.style.position = 'absolute';
+            landedPaper.style.bottom = `${landYOffset}px`;
+            landedPaper.style.left = `${landX}px`;
+            landedPaper.style.top = 'auto';
+            landedPaper.style.transform = `rotate(${landRotation}deg)`;
+
+            if (landedPapersContainer) {
+                landedPapersContainer.appendChild(landedPaper);
+            }
+            if (paper.parentNode) {
+                paper.parentNode.removeChild(paper);
+            }
+        }, { once: true });
+        // --- End Handle Paper Drop ---
+
+        // --- Update State (after balloon animation timeout) ---
         setTimeout(() => {
             count--;
             setCookie('countdownCount', count, 7);
@@ -233,27 +311,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 balloonElement.parentNode.removeChild(balloonElement);
             }
 
-            // Check for finish state
             if (count <= 0) {
                 if (messageDiv) {
                     messageDiv.textContent = 'You did it! 🎉';
                     messageDiv.style.display = 'block';
                 }
                 if (countdownButton) countdownButton.style.display = 'none';
-                document.body.style.backgroundColor = '#fff'; // Final white background
+                document.body.style.backgroundColor = '#fff';
                 if (balloonContainer) balloonContainer.innerHTML = '';
-                // Final confetti blast on finish
                 confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
                 confetti({ particleCount: 150, spread: 120, origin: { y: 0.8 }, angle: 90 });
             }
-        }, 200); // Match timeout to CSS transition duration
+        }, 200);
     }
 
     function updateDisplay() {
         if (!countdownButton || !messageDiv) return;
-
         renderBalloons();
-
         if (count <= 0) {
             countdownButton.style.display = 'none';
             messageDiv.textContent = 'You did it! 🎉';
@@ -269,9 +343,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initialize display on load
-    // Need to store initial count for confetti intensity calculation
-    setCookie('initialCountForIntensity', count, 7);
-    updateDisplay();
+    function initializeState() {
+        count = parseInt(getCookie('countdownCount')) || 25;
+        initialCountForIntensity = count;
+        setCookie('initialCountForIntensity', initialCountForIntensity, 7);
+        
+        // Store the absolute initial count if not already set
+        if (!getCookie('initialTotalAssessments')) {
+            setCookie('initialTotalAssessments', count, 365);
+        }
+        // Remove pile height initialization
+        /*
+        const totalAssessments = ...
+        if (paperPile) {
+            ...
+        }
+        */
+        
+        // Clear any previously landed papers on reload
+        if (landedPapersContainer) {
+            landedPapersContainer.innerHTML = '';
+        }
+
+        updateDisplay();
+    }
+    
+    initializeState();
 
     // --- Animation Loop ---
     let lastNudgeTime = 0;
@@ -369,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (changeCountButton && modalOverlay && modalInput && modalCancel && modalSubmit && modalError) {
         // Open modal
         changeCountButton.addEventListener('click', () => {
-            modalInput.value = count > 0 ? count : 10; // Default/current balloon count
+            modalInput.value = count > 0 ? count : 25; // Default/current balloon count
             modalError.textContent = '';
             modalOverlay.classList.remove('hidden');
             modalInput.focus();
@@ -389,9 +486,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalInput.focus();
             } else {
                 count = newCount;
+                initialCountForIntensity = count;
                 setCookie('countdownCount', count, 7);
-                setCookie('initialCountForIntensity', count, 7); // Update initial count for intensity calc
-                updateDisplay();
+                setCookie('initialCountForIntensity', initialCountForIntensity, 7);
+                setCookie('initialTotalAssessments', count, 365);
+                initializeState();
                 modalOverlay.classList.add('hidden');
                 document.body.style.backgroundColor = '#333';
             }

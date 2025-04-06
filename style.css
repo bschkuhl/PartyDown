@@ -213,4 +213,99 @@ body {
 .balloon.popped {
     transform: scale(1.5);
     opacity: 0;
+}
+
+/* --- Paper Styles --- */
+#paper-fall-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* height: calc(100vh - 50px); */ /* Removed height limit */
+    height: 100vh;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 5;
+}
+
+/* Remove #paper-pile styles */
+/*
+#paper-pile {
+    ...
+}
+*/
+
+/* Container for landed papers */
+#landed-papers-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 150px; /* Adjust height for pile area */
+    pointer-events: none; /* Clicks pass through */
+    z-index: 6;
+    overflow: hidden; /* Hide papers outside this area if needed */
+}
+
+.paper {
+    position: absolute;
+    width: 50px; /* Slightly larger paper */
+    height: 65px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    top: -70px; /* Start above screen */
+    left: 50%; /* Start near center horizontally */
+    /* transform-origin: center center; */ /* Set dynamically */
+    z-index: 5;
+    /* Ensure text is visible */
+    overflow: hidden;
+    display: flex; /* Use flexbox to center text */
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.paper-message {
+    font-size: 8px; /* Small font size */
+    color: #555; /* Dark grey text */
+    padding: 2px;
+    line-height: 1.2;
+    display: inline-block; /* Allow padding */
+    max-width: 90%; /* Prevent long messages overflowing */
+}
+
+/* Paper Fall Animation */
+@keyframes fallAndFlutter {
+    0% {
+        top: -70px;
+        transform: translateX(-50%) rotate(0deg);
+        opacity: 1;
+    }
+    20% {
+        transform: translateX(calc(-50% - 40px)) rotate(-20deg);
+    }
+    40% {
+        transform: translateX(calc(-50% + 40px)) rotate(20deg);
+    }
+    60% {
+        transform: translateX(calc(-50% - 30px)) rotate(-15deg);
+    }
+    80% {
+        transform: translateX(calc(-50% + 30px)) rotate(15deg);
+    }
+    /* 95% { */ /* Removed intermediate step */
+         /* transform: translateX(-50%) rotate(0deg); */
+         /* opacity: 1; */
+    /* } */
+    100% {
+        top: calc(100vh - 100px); /* Land within the bottom container area */
+        transform: translateX(-50%) rotate(0deg);
+        opacity: 1; /* Stay visible */
+    }
+}
+
+.paper.falling {
+    /* Removed 'forwards' so element returns to start pos after animation */
+    animation: fallAndFlutter 2s ease-in-out;
 } 
