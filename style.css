@@ -7,16 +7,24 @@ body {
     margin: 0;
     font-family: sans-serif;
     transition: background-color 0.3s ease;
+    overflow: hidden; /* Hide balloons that might float off-screen */
 }
 
 #countdown-button {
-    padding: 20px 40px;
+    /* padding: 20px 40px; */ /* Removed padding */
     font-size: 3em;
-    cursor: pointer;
+    /* cursor: pointer; */ /* Old cursor */
+    cursor: crosshair; /* Change cursor to crosshair/pin */
     border: none;
-    border-radius: 10px;
-    background-color: #eee;
-    color: #333;
+    /* border-radius: 10px; */ /* Removed border radius */
+    background-color: transparent; /* Make background transparent */
+    color: #eee; /* Counter color */
+    position: absolute; /* Position centrally */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10; /* Ensure it's above balloons */
+    pointer-events: auto; /* Ensure it's clickable */
 }
 
 #message {
@@ -145,4 +153,64 @@ body {
     font-size: 0.9em;
     height: 1.2em; /* Reserve space to prevent layout shifts */
     margin-bottom: 10px;
+}
+
+#balloon-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Clicks go through container to balloons */
+}
+
+.balloon {
+    position: absolute;
+    /* Increased size */
+    width: 80px;
+    height: 105px;
+    /* Keep background-color for base, gradient adds shine */
+    background-color: lightblue; 
+    /* border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; */ /* Original - Egg shape */
+    border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%; /* Inverted - Balloon shape */
+    /* cursor: pointer; */ /* Old cursor */
+    cursor: crosshair; /* Change cursor to crosshair/pin */
+    pointer-events: auto;
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+    /* Shading at bottom */
+    box-shadow: inset -10px -10px 0 rgba(0, 0, 0, 0.07);
+    z-index: 1;
+    /* Add radial gradient for shine */
+    background-image: radial-gradient(
+        circle at 30% 30%, /* Position the highlight */
+        rgba(255, 255, 255, 0.5) 0%,
+        rgba(255, 255, 255, 0.1) 30%,
+        transparent 70%
+    );
+}
+
+/* Balloon String */
+.balloon::after {
+    content: '';
+    position: absolute;
+    bottom: -30px; /* Position below the balloon */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px; /* Thin string */
+    height: 30px; /* String length */
+    background-color: rgba(0, 0, 0, 0.5); /* Dark grey string */
+    pointer-events: none; /* String shouldn't be clickable */
+}
+
+/* Define pastel colors */
+.balloon.color-1 { background-color: #ffb3ba; } /* Light Pink */
+.balloon.color-2 { background-color: #ffdfba; } /* Light Peach */
+.balloon.color-3 { background-color: #ffffba; } /* Light Yellow */
+.balloon.color-4 { background-color: #baffc9; } /* Light Mint */
+.balloon.color-5 { background-color: #bae1ff; } /* Light Blue */
+
+/* Pop animation */
+.balloon.popped {
+    transform: scale(1.5);
+    opacity: 0;
 } 
